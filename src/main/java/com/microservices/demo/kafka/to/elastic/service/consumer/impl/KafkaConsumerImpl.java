@@ -1,9 +1,12 @@
 package com.microservices.demo.kafka.to.elastic.service.consumer.impl;
 
 import com.microservices.demo.config.KafkaConfigData;
+import com.microservices.demo.elastic.index.client.service.ElasticIndexClient;
+import com.microservices.demo.elastic.model.index.impl.TwitterIndexModel;
 import com.microservices.demo.kafka.admin.client.KafkaAdminClient;
 import com.microservices.demo.kafka.avro.model.TwitterAvroModel;
 import com.microservices.demo.kafka.to.elastic.service.consumer.KafkaConsumer;
+import com.microservices.demo.kafka.to.elastic.service.transformer.AvroToElasticModelTransformer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
@@ -26,12 +29,16 @@ public class KafkaConsumerImpl implements KafkaConsumer<Long, TwitterAvroModel> 
     private final KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
     private final KafkaAdminClient kafkaAdminClient;
     private final KafkaConfigData kafkaConfigData;
+    private final AvroToElasticModelTransformer transformer;
+    private final ElasticIndexClient<TwitterIndexModel> elasticIndexClient;
 
     public KafkaConsumerImpl(KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry,
-                             KafkaAdminClient kafkaAdminClient, KafkaConfigData kafkaConfigData) {
+                             KafkaAdminClient kafkaAdminClient, KafkaConfigData kafkaConfigData, AvroToElasticModelTransformer transformer, ElasticIndexClient<TwitterIndexModel> elasticIndexClient) {
         this.kafkaListenerEndpointRegistry = kafkaListenerEndpointRegistry;
         this.kafkaAdminClient = kafkaAdminClient;
         this.kafkaConfigData = kafkaConfigData;
+        this.transformer = transformer;
+        this.elasticIndexClient = elasticIndexClient;
     }
 
     @EventListener
@@ -58,5 +65,8 @@ public class KafkaConsumerImpl implements KafkaConsumer<Long, TwitterAvroModel> 
                 offsets,
                 Thread.currentThread().getName()
         );
+        List<TwitterIndexModel> twitterIndexModels = transformer.getElasticModel(messages);
+        List<String> documents = elasticIndexClient.save(twitterIndexModels);
+        LOGGER.info("Documents saved to elastic search with Ids: {}", documents);
     }
 }
